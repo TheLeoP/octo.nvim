@@ -36,7 +36,7 @@ local discussion = defaulter(function(opts)
             -- clear the buffer
             vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {})
 
-            local result = vim.json.decode(output)
+            local result = vim.json.decode(output) ---@type {data: {repository: octo.gh.Repository}}
             local obj = result.data.repository.discussion
 
             writers.write_title(bufnr, tostring(obj.title), 1)
@@ -79,8 +79,8 @@ local issue = defaulter(function(opts)
             if stderr and not utils.is_blank(stderr) then
               vim.api.nvim_err_writeln(stderr)
             elseif output and vim.api.nvim_buf_is_valid(bufnr) then
-              local result = vim.json.decode(output)
-              local obj
+              local result = vim.json.decode(output) ---@type {data: {repository: octo.gh.Repository}}
+              local obj ---@type octo.gh.Issue | octo.gh.PullRequest | vim.NIL
               if entry.kind == "issue" then
                 obj = result.data.repository.issue
               elseif entry.kind == "pull_request" then

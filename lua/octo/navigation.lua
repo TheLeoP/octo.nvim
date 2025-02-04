@@ -123,7 +123,7 @@ function M.go_to_issue()
       if stderr and not utils.is_blank(stderr) then
         vim.api.nvim_err_writeln(stderr)
       elseif output then
-        local resp = vim.json.decode(output)
+        local resp = vim.json.decode(output) ---@type {data: {repository: octo.gh.Repository}}
         local kind = resp.data.repository.issueOrPullRequest.__typename
         if kind == "Issue" then
           utils.get_issue(number, repo)

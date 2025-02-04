@@ -22,12 +22,15 @@ local M = {}
 ---@field bodyMetadata BodyMetadata
 ---@field commentsMetadata CommentMetadata[]
 ---@field threadsMetadata ThreadMetadata[]
----@field node table
+---@field node octo.gh.Repository
 ---@field taggable_users string[]
+---@field owner string
+---@field name string
 local OctoBuffer = {}
 OctoBuffer.__index = OctoBuffer
 
 ---OctoBuffer constructor.
+---@param opts table
 ---@return OctoBuffer
 function OctoBuffer:new(opts)
   local this = {
@@ -400,10 +403,12 @@ function OctoBuffer:do_save_title_and_body()
           vim.api.nvim_err_writeln(stderr)
         elseif output then
           local resp = vim.json.decode(output)
-          local obj
+          local obj ---@type octo.gh.Issue | octo.gh.PullRequest | vim.NIL
           if self:isPullRequest() then
+            ---@cast resp {data: {updatePullRequest: octo.gh.UpdatePullRequestPayload}}
             obj = resp.data.updatePullRequest.pullRequest
           elseif self:isIssue() then
+            ---@cast resp {data: {updateIssue: octo.gh.UpdateIssuePayload}}
             obj = resp.data.updateIssue.issue
           end
           if title_metadata.body == obj.title then
@@ -437,7 +442,7 @@ function OctoBuffer:do_add_issue_comment(comment_metadata)
       if stderr and not utils.is_blank(stderr) then
         vim.api.nvim_err_writeln(stderr)
       elseif output then
-        local resp = vim.json.decode(output)
+        local resp = vim.json.decode(output) ---@type {data: {addComment: octo.gh.AddCommentPayload}}
         local respBody = resp.data.addComment.commentEdge.node.body
         local respId = resp.data.addComment.commentEdge.node.id
         if utils.trim(comment_metadata.body) == utils.trim(respBody) then
@@ -472,9 +477,9 @@ function OctoBuffer:do_add_thread_comment(comment_metadata)
       if stderr and not utils.is_blank(stderr) then
         vim.api.nvim_err_writeln(stderr)
       elseif output then
-        local resp = vim.json.decode(output)
+        local resp = vim.json.decode(output) ---@type {data: {addPullRequestReviewComment: octo.gh.AddPullRequestReviewCommentPayload}}
         local resp_comment = resp.data.addPullRequestReviewComment.comment
-        local comment_end
+        local comment_end ---@type integer
         if utils.trim(comment_metadata.body) == utils.trim(resp_comment.body) then
           local comments = self.commentsMetadata
           for i, c in ipairs(comments) do
@@ -584,7 +589,7 @@ function OctoBuffer:do_add_new_thread(comment_metadata)
         if stderr and not utils.is_blank(stderr) then
           vim.api.nvim_err_writeln(stderr)
         elseif output then
-          local resp = vim.json.decode(output).data.addPullRequestReviewThread
+          local resp = vim.json.decode(output).data.addPullRequestReviewThread ---@type octo.gh.AddPullRequestReviewThreadPayload
           if not utils.is_blank(resp.thread) then
             local new_comment = resp.thread.comments.nodes[1]
             if utils.trim(comment_metadata.body) == utils.trim(new_comment.body) then
@@ -682,7 +687,7 @@ function OctoBuffer:do_add_new_thread(comment_metadata)
             vim.api.nvim_err_writeln(stderr)
           elseif output then
             local r = vim.json.decode(output)
-            local resp = r.data.addPullRequestReviewComment
+            local resp = r.data.addPullRequestReviewComment ---@type octo.gh.AddPullRequestReviewCommentPayload
             if not utils.is_blank(resp.comment) then
               if utils.trim(comment_metadata.body) == utils.trim(resp.comment.body) then
                 local comments = self.commentsMetadata
@@ -712,6 +717,7 @@ function OctoBuffer:do_add_new_thread(comment_metadata)
 end
 
 ---Replies a review thread w/o creating a new review
+---@param comment_metadata CommentMetadata
 function OctoBuffer:do_add_pull_request_comment(comment_metadata)
   local current_review = require("octo.reviews").get_current_review()
   if not utils.is_blank(current_review) then
@@ -775,10 +781,12 @@ function OctoBuffer:do_update_comment(comment_metadata)
         vim.api.nvim_err_writeln(stderr)
       elseif output then
         local resp = vim.json.decode(output)
-        local resp_comment
+        local resp_comment ---@type octo.gh.IssueComment | octo.gh.PullRequestReview| octo.gh.PullRequestReviewComment | vim.NIL
         if comment_metadata.kind == "IssueComment" then
+          ---@cast resp {data: {updateIssueComment: octo.gh.UpdateIssueCommentPayload}}
           resp_comment = resp.data.updateIssueComment.issueComment
         elseif comment_metadata.kind == "PullRequestReviewComment" then
+          ---@cast resp {data: {updatePullRequestReviewComment: octo.gh.UpdatePullRequestReviewCommentPayload}}
           resp_comment = resp.data.updatePullRequestReviewComment.pullRequestReviewComment
           local threads =
             resp.data.updatePullRequestReviewComment.pullRequestReviewComment.pullRequest.reviewThreads.nodes
@@ -787,6 +795,7 @@ function OctoBuffer:do_update_comment(comment_metadata)
             review:update_threads(threads)
           end
         elseif comment_metadata.kind == "PullRequestReview" then
+          ---@cast resp {data: {updatePullRequestReview: octo.gh.UpdatePullRequestReviewPayload}}
           resp_comment = resp.data.updatePullRequestReview.pullRequestReview
         end
         if resp_comment and utils.trim(comment_metadata.body) == utils.trim(resp_comment.body) then
@@ -1019,6 +1028,8 @@ function OctoBuffer:get_reactions_at_cursor()
 end
 
 ---Updates the reactions groups at cursor (if any)
+---@param reaction_groups octo.gh.ReactionGroup[]
+---@param reaction_line integer
 function OctoBuffer:update_reactions_at_cursor(reaction_groups, reaction_line)
   local cursor = vim.api.nvim_win_get_cursor(0)
   local reactions_count = 0

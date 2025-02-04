@@ -244,7 +244,7 @@ end
 
 ---Run a graphql query
 ---@param opts table the options for the graphql query
----@return table|nil
+---@return string|nil
 function M.graphql(opts)
   local run_opts = opts.opts or {}
   return M.run {
